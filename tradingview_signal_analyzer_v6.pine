@@ -1,0 +1,89 @@
+//@version=6
+indicator("Trend Analyzer + Buy/Sell Signal with Candle Confirmation", overlay=true)
+
+// =========================
+// Paramètres
+// =========================
+fastLen = input.int(9, "Fast EMA", minval=1)
+slowLen = input.int(21, "Slow EMA", minval=1)
+atrLen = input.int(14, "ATR Length", minval=1)
+atrMult = input.float(1.5, "ATR Multiplier", step=0.1)
+bullishCandleSize = input.float(0.5, "Bullish Candle Confirmation %", step=0.1, minval=0.1)
+bearishCandleSize = input.float(0.5, "Bearish Candle Confirmation %", step=0.1, minval=0.1)
+showSignals = input.bool(true, "Afficher les signaux")
+
+// =========================
+// Calculs
+// =========================
+fastEma = ta.ema(close, fastLen)
+slowEma = ta.ema(close, slowLen)
+
+atrValue = ta.atr(atrLen)
+
+// Détection de tendance
+trendBullish = fastEma > slowEma
+trendBearish = fastEma < slowEma
+
+// Détection des bougies
+bodySize = math.abs(close - open)
+totalRange = high - low
+bullishBodyPct = bodySize / math.max(totalRange, syminfo.mintick) * 100
+bearishBodyPct = bodySize / math.max(totalRange, syminfo.mintick) * 100
+
+isBullishCandle = close > open and (bodySize >= (totalRange * bullishCandleSize / 100))
+isBearishCandle = close < open and (bodySize >= (totalRange * bearishCandleSize / 100))
+
+// Confirmation de momentum
+closeAboveFast = close > fastEma
+closeBelowFast = close < fastEma
+
+// Condition d'achat
+buyCondition = (trendBullish and 
+               closeAboveFast and 
+               isBullishCandle and 
+               close > open and 
+               close > high[1] and 
+               (close - open) > atrValue * 0.25)
+
+// Condition de vente
+sellCondition = (trendBearish and 
+                closeBelowFast and 
+                isBearishCandle and 
+                close < open and 
+                close < low[1] and 
+                (open - close) > atrValue * 0.25)
+
+// =========================
+// Signaux
+// =========================
+buySignalActive = buyCondition
+sellSignalActive = sellCondition
+
+// =========================
+// Affichage
+// =========================
+plot(fastEma, color=color.new(color.blue, 0), linewidth=2, title="Fast EMA")
+plot(slowEma, color=color.new(color.orange, 0), linewidth=2, title="Slow EMA")
+
+bgcolor(trendBullish ? color.new(color.green, 85) : trendBearish ? color.new(color.red, 85) : color.new(color.gray, 90))
+
+plotshape(showSignals and buySignalActive, title="Buy Signal", style=shape.labelup, location=location.belowbar, color=color.new(color.green, 0), text="BUY", textcolor=color.white, size=size.normal)
+plotshape(showSignals and sellSignalActive, title="Sell Signal", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), text="SELL", textcolor=color.white, size=size.normal)
+
+// =========================
+// Alertes
+// =========================
+alertcondition(buyCondition, title="Achat Signal", message="Achat confirmé : tendance haussière + confirmation bougie")
+alertcondition(sellCondition, title="Sell Signal", message="Vente confirmée : tendance baissière + confirmation bougie")
+
+// =========================
+// Tableau de diagnostic
+// =========================
+if barstate.islast
+    var table infoTable = table.new(position.top_right, 2, 3, bgcolor=color.new(color.black, 80), border_color=color.gray)
+    table.cell(infoTable, 0, 0, "Trend", text_color=color.white)
+    table.cell(infoTable, 1, 0, trendBullish ? "Bullish" : trendBearish ? "Bearish" : "Neutral", text_color=trendBullish ? color.green : trendBearish ? color.red : color.gray)
+    table.cell(infoTable, 0, 1, "Buy", text_color=color.white)
+    table.cell(infoTable, 1, 1, buyCondition ? "YES" : "NO", text_color=buyCondition ? color.green : color.white)
+    table.cell(infoTable, 0, 2, "Sell", text_color=color.white)
+    table.cell(infoTable, 1, 2, sellCondition ? "YES" : "NO", text_color=sellCondition ? color.red : color.white)
